@@ -195,8 +195,7 @@ function loadConfig() {
     try {
         return JSON.parse(fs.readFileSync(".quality-agent.json", "utf8")).checks || {};
     } catch (_) {
-        // Default: all checks enabled when no config file exists
-        return { checkstyle: true, pmd: true, spotbugs: true };
+        return {};
     }
 }
 
