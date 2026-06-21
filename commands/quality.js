@@ -10,8 +10,14 @@ const PMD_RULES_XML  = path.join(PKG_ROOT, "config", "pmd-rules.xml");
 
 function getStagedJavaFiles() {
     try {
-        const out = execSync("git diff --cached --name-only", { encoding: "utf8" });
-        return out.split("\n").map(f => f.trim()).filter(f => f.endsWith(".java"));
+        // Staged files first (git add / terminal workflow)
+        const staged = execSync("git diff --cached --name-only", { encoding: "utf8" });
+        const stagedFiles = staged.split("\n").map(f => f.trim()).filter(f => f.endsWith(".java"));
+        if (stagedFiles.length) return stagedFiles;
+
+        // Fall back to modified-but-unstaged files (IntelliJ commit dialog workflow)
+        const modified = execSync("git diff --name-only", { encoding: "utf8" });
+        return modified.split("\n").map(f => f.trim()).filter(f => f.endsWith(".java"));
     } catch (_) { return []; }
 }
 
@@ -19,7 +25,9 @@ function getStagedJavaFiles() {
 // Returns: { "src/main/java/.../Foo.java": [[startLine, endLine], ...] }
 function getChangedLineRanges() {
     try {
-        const diff = execSync("git diff --cached --unified=0", { encoding: "utf8" });
+        // Use staged diff if available, otherwise fall back to unstaged diff
+        let diff = execSync("git diff --cached --unified=0", { encoding: "utf8" });
+        if (!diff.trim()) diff = execSync("git diff --unified=0", { encoding: "utf8" });
         const ranges = {};
         let cur = null;
 
