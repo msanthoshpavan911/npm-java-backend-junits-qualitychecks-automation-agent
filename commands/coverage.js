@@ -76,7 +76,21 @@ function parseCoverage(productionFiles) {
     return { results };
 }
 
+function loadConfig() {
+    try {
+        return JSON.parse(fs.readFileSync(".quality-agent.json", "utf8")).checks || {};
+    } catch (_) {
+        return { coverage: true };
+    }
+}
+
 module.exports = function coverage() {
+
+    const checks = loadConfig();
+    if (checks.coverage === false) {
+        console.log("Coverage check disabled — skipping.");
+        return;
+    }
 
     const changed    = getChangedJavaFiles();
     const production = changed.filter(isProductionFile);

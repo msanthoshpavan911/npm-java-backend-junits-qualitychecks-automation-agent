@@ -189,9 +189,27 @@ function parseSpotbugsXml(changedRanges) {
     return viols;
 }
 
+// ── config ────────────────────────────────────────────────────────────────────
+
+function loadConfig() {
+    try {
+        return JSON.parse(fs.readFileSync(".quality-agent.json", "utf8")).checks || {};
+    } catch (_) {
+        // Default: all checks enabled when no config file exists
+        return { checkstyle: true, pmd: true, spotbugs: true };
+    }
+}
+
 // ── main export ───────────────────────────────────────────────────────────────
 
 module.exports = function quality() {
+
+    const checks = loadConfig();
+    const anyEnabled = checks.checkstyle || checks.pmd || checks.spotbugs;
+    if (!anyEnabled) {
+        console.log("No quality checks enabled — run 'springbootquality-check911 init' to configure.");
+        return;
+    }
 
     const staged = getStagedJavaFiles();
     if (!staged.length) {
@@ -199,7 +217,6 @@ module.exports = function quality() {
         return;
     }
 
-    // Get exact line ranges that changed in this commit
     const changedRanges = getChangedLineRanges();
     const names   = staged.map(f => path.basename(f));
     const classes = staged.map(toClass).filter(Boolean).join(",");
@@ -212,62 +229,67 @@ module.exports = function quality() {
     let failed    = false;
 
     // ── Checkstyle ────────────────────────────────────────────────────────────
-    process.stdout.write("Running Checkstyle... ");
-    clean("target/checkstyle-result.xml");
-    mvnSilent(`mvn checkstyle:checkstyle -Dcheckstyle.config.location="target/sq-checkstyle.xml"`);
-    const csViols = parseCheckstyleXml(changedRanges);
-    if (csViols === null) {
-        console.log("⚠️");
-        results.push("⚠️  Checkstyle: report not generated (add maven-checkstyle-plugin to pom.xml)");
-    } else if (csViols.length) {
-        console.log("❌");
-        csViols.forEach(v => console.log(v));
-        results.push(`❌ Checkstyle: ${csViols.length} violation(s) in your changed lines`);
-        failed = true;
-    } else {
-        console.log("✅");
-        results.push("✅ Checkstyle passed");
+    if (checks.checkstyle) {
+        process.stdout.write("Running Checkstyle... ");
+        clean("target/checkstyle-result.xml");
+        mvnSilent(`mvn checkstyle:checkstyle -Dcheckstyle.config.location="target/sq-checkstyle.xml"`);
+        const csViols = parseCheckstyleXml(changedRanges);
+        if (csViols === null) {
+            console.log("⚠️");
+            results.push("⚠️  Checkstyle: report not generated (add maven-checkstyle-plugin to pom.xml)");
+        } else if (csViols.length) {
+            console.log("❌");
+            csViols.forEach(v => console.log(v));
+            results.push(`❌ Checkstyle: ${csViols.length} violation(s) in your changed lines`);
+            failed = true;
+        } else {
+            console.log("✅");
+            results.push("✅ Checkstyle passed");
+        }
     }
 
     // ── PMD ───────────────────────────────────────────────────────────────────
-    process.stdout.write("Running PMD...        ");
-    clean("target/pmd.xml");
-    mvnSilent(`mvn pmd:pmd -Dpmd.rulesets="target/sq-pmd-rules.xml"`);
-    const pmdViols = parsePmdXml(changedRanges);
-    if (pmdViols === null) {
-        console.log("⚠️");
-        results.push("⚠️  PMD: report not generated (add maven-pmd-plugin to pom.xml)");
-    } else if (pmdViols.length) {
-        console.log("❌");
-        pmdViols.forEach(v => console.log(v));
-        results.push(`❌ PMD: ${pmdViols.length} violation(s) in your changed lines`);
-        failed = true;
-    } else {
-        console.log("✅");
-        results.push("✅ PMD passed");
+    if (checks.pmd) {
+        process.stdout.write("Running PMD...        ");
+        clean("target/pmd.xml");
+        mvnSilent(`mvn pmd:pmd -Dpmd.rulesets="target/sq-pmd-rules.xml"`);
+        const pmdViols = parsePmdXml(changedRanges);
+        if (pmdViols === null) {
+            console.log("⚠️");
+            results.push("⚠️  PMD: report not generated (add maven-pmd-plugin to pom.xml)");
+        } else if (pmdViols.length) {
+            console.log("❌");
+            pmdViols.forEach(v => console.log(v));
+            results.push(`❌ PMD: ${pmdViols.length} violation(s) in your changed lines`);
+            failed = true;
+        } else {
+            console.log("✅");
+            results.push("✅ PMD passed");
+        }
     }
 
     // ── SpotBugs ──────────────────────────────────────────────────────────────
-    // SpotBugs needs compiled bytecode — compile first
-    process.stdout.write("Running SpotBugs...   ");
-    mvnSilent("mvn compile -q");
-    clean("target/spotbugsXml.xml");
-    const sbCmd = classes
-        ? `mvn spotbugs:spotbugs -Dspotbugs.onlyAnalyze="${classes}" -Dspotbugs.xmlOutput=true`
-        : "mvn spotbugs:spotbugs -Dspotbugs.xmlOutput=true";
-    mvnSilent(sbCmd);
-    const sbViols = parseSpotbugsXml(changedRanges);
-    if (sbViols === null) {
-        console.log("⚠️");
-        results.push("⚠️  SpotBugs: report not generated (add spotbugs-maven-plugin to pom.xml)");
-    } else if (sbViols.length) {
-        console.log("❌");
-        sbViols.forEach(v => console.log(v));
-        results.push(`❌ SpotBugs: ${sbViols.length} violation(s) in your changed lines`);
-        failed = true;
-    } else {
-        console.log("✅");
-        results.push("✅ SpotBugs passed");
+    if (checks.spotbugs) {
+        process.stdout.write("Running SpotBugs...   ");
+        mvnSilent("mvn compile -q");
+        clean("target/spotbugsXml.xml");
+        const sbCmd = classes
+            ? `mvn spotbugs:spotbugs -Dspotbugs.onlyAnalyze="${classes}" -Dspotbugs.xmlOutput=true`
+            : "mvn spotbugs:spotbugs -Dspotbugs.xmlOutput=true";
+        mvnSilent(sbCmd);
+        const sbViols = parseSpotbugsXml(changedRanges);
+        if (sbViols === null) {
+            console.log("⚠️");
+            results.push("⚠️  SpotBugs: report not generated (add spotbugs-maven-plugin to pom.xml)");
+        } else if (sbViols.length) {
+            console.log("❌");
+            sbViols.forEach(v => console.log(v));
+            results.push(`❌ SpotBugs: ${sbViols.length} violation(s) in your changed lines`);
+            failed = true;
+        } else {
+            console.log("✅");
+            results.push("✅ SpotBugs passed");
+        }
     }
 
     console.log("\n--- Quality Summary ---");

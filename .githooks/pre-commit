@@ -9,3 +9,13 @@ if [ $? -ne 0 ]; then
   echo "  'Fix the quality violations in my staged files'"
   exit 1
 fi
+
+echo "Verifying test coverage..."
+springbootquality-check911 coverage
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "Coverage below 95%. Fix with GitHub Copilot — open Copilot Chat and ask:"
+  echo "  'Generate JUnit5 tests to reach 95% coverage for my changed files'"
+  exit 1
+fi
