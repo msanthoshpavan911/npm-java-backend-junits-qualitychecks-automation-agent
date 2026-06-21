@@ -3,13 +3,13 @@ const fs = require("fs");
 const path = require("path");
 
 function getChangedJavaFiles() {
+    // Pre-commit: staged files must be checked first — diff-tree reads the last
+    // committed snapshot and returns ALL files on the initial commit, causing
+    // full-application coverage instead of changed-file coverage.
     const cmds = [
-        // Files changed in the last commit only
-        "git diff-tree --no-commit-id -r --name-only HEAD",
-        // Fallback: diff between last two commits
+        "git diff --cached --name-only",
         "git diff --name-only HEAD~1 HEAD",
-        // Fallback: staged files (pre-commit scenario)
-        "git diff --cached --name-only"
+        "git diff-tree --no-commit-id -r --name-only HEAD",
     ];
     for (const cmd of cmds) {
         try {
