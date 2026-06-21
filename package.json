@@ -1,6 +1,6 @@
 {
   "name": "springbootquality-check911",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "GitHub Copilot agent for Spring Boot — auto-generates tests, fixes code smells, and validates JaCoCo coverage on every commit and push",
   "bin": {
     "springbootquality-check911": "./bin/springboot-quality-agent.js"
