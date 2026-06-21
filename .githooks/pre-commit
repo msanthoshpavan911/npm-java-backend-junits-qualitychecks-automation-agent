@@ -1,0 +1,11 @@
+#!/bin/bash
+
+echo "Running Spring Boot quality checks..."
+springbootquality-check911 quality
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "Fix with GitHub Copilot — open Copilot Chat and ask:"
+  echo "  'Fix the quality violations in my staged files'"
+  exit 1
+fi
