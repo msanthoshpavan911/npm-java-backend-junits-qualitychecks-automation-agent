@@ -20,12 +20,6 @@ if [ $? -ne 0 ]; then
   echo "  'Fix the quality violations in my staged files'"
   exit 1
 fi
-`
-    );
-
-    fs.writeFileSync(
-        ".githooks/pre-push",
-`#!/bin/bash
 
 echo "Verifying test coverage..."
 springbootquality-check911 coverage
@@ -38,6 +32,8 @@ if [ $? -ne 0 ]; then
 fi
 `
     );
+
+    fs.writeFileSync(".githooks/pre-push", "#!/bin/bash\n");
 
     try {
         fs.chmodSync(".githooks/pre-commit", 0o755);
