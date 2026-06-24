@@ -32,19 +32,31 @@ function extractClassName(src, filePath) {
 }
 
 function extractPublicMethods(src, className) {
-    const skip = new Set(["if", "while", "for", "switch", "catch", "try", "return"]);
+    const KEYWORDS = new Set([
+        "if", "while", "for", "switch", "catch", "try", "return", "new",
+        "class", "interface", "enum", "void", "int", "long", "boolean",
+        "String", "Object", "static", "final", "abstract", "default"
+    ]);
     const methods = [];
-    const re = /public\s+(?:static\s+)?(?:final\s+)?(?:<[^>]+>\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)\s*\(([^)]*)\)/g;
-    for (const m of src.matchAll(re)) {
-        const name = m[2];
-        if (name === className || skip.has(name)) continue;
-        methods.push({
-            returnType: m[1],
-            name,
-            params: m[3].split(",").map(p => p.trim()).filter(Boolean)
-        });
+
+    // Strip comments so annotations/strings don't confuse the parser
+    const clean = src
+        .replace(/\/\/[^\n]*/g, "")
+        .replace(/\/\*[\s\S]*?\*\//g, "");
+
+    // Strategy: find `public`, then lazily consume characters (excluding `(` `)` `;`)
+    // until we hit `wordName(` — the last word before `(` is the method name.
+    // This handles any return type including nested generics like List<Map<String,List<Integer>>>.
+    const re = /\bpublic\b[^();]*?(\w+)\s*\(([^)]*)\)\s*(?:throws[\w\s,]+)?\s*[{;]/g;
+
+    for (const m of clean.matchAll(re)) {
+        const name = m[1];
+        if (name === className || KEYWORDS.has(name)) continue;
+        const params = m[2].split(",").map(p => p.trim()).filter(Boolean);
+        methods.push({ name, params });
     }
-    return [...new Map(methods.map(m => [m.name, m])).values()]; // deduplicate by name
+
+    return [...new Map(methods.map(m => [m.name, m])).values()];
 }
 
 function extractDependencies(src) {
@@ -394,8 +406,11 @@ module.exports = async function generateTests(filePath) {
     const outPath   = testFilePath(filePath);
     const exists    = fs.existsSync(outPath);
 
+    const publicMethods = extractPublicMethods(src, className);
+
     console.log(`\nSource:    ${filePath}`);
-    console.log(`Type:      ${classType}  |  Class: ${className}  |  Package: ${pkg}`);
+    console.log(`Type:      ${classType}  |  Class: ${className}  |  Package: ${pkg || "(none detected)"}`);
+    console.log(`Methods:   ${publicMethods.length > 0 ? publicMethods.map(m => m.name).join(", ") : "none found"}`);
     console.log(`Tests:     ${outPath}  (${exists ? "exists — will add missing cases" : "will be created"})\n`);
 
     // build all candidate test cases
@@ -407,7 +422,8 @@ module.exports = async function generateTests(filePath) {
 
     if (!allCases.length) {
         console.log("⚠️  No public methods found to generate tests for.");
-        console.log("   Add public methods to the class and re-run.");
+        console.log("   Ensure the class has public methods (not just a constructor).");
+        console.log("   Command to run: springbootquality-check911 generate-tests <file.java>\n");
         return;
     }
 
