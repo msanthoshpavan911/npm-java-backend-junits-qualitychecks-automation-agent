@@ -2,11 +2,12 @@
 
 const { Command } = require("commander");
 
-const init     = require("../commands/init");
-const scan     = require("../commands/scan");
-const quality  = require("../commands/quality");
-const coverage = require("../commands/coverage");
-const hooks    = require("../commands/hooks");
+const init          = require("../commands/init");
+const scan          = require("../commands/scan");
+const quality       = require("../commands/quality");
+const coverage      = require("../commands/coverage");
+const hooks         = require("../commands/hooks");
+const generateTests = require("../commands/generate-tests");
 
 const program = new Command();
 
@@ -16,8 +17,9 @@ program
 `Spring Boot Quality Agent — scan, fix, and enforce code quality on your Java project.
 
 MANUAL USAGE (run anytime before committing):
-  $ springbootquality-check911 quality    — scan staged files for Checkstyle / PMD / SpotBugs violations
-  $ springbootquality-check911 coverage   — check JaCoCo coverage for staged/changed files only
+  $ springbootquality-check911 quality          — scan staged files for Checkstyle / PMD / SpotBugs violations
+  $ springbootquality-check911 coverage         — check JaCoCo coverage for staged/changed files only
+  $ springbootquality-check911 generate-tests   — generate JUnit 5 tests for a Java class
 
 SETUP COMMANDS:
   $ springbootquality-check911 init       — configure which quality checks to enable for this project
@@ -49,6 +51,11 @@ program
     .command("hooks")
     .description("Install git pre-commit hook that auto-runs quality + coverage checks on every commit")
     .action(hooks);
+
+program
+    .command("generate-tests [file]")
+    .description("Generate JUnit 5 tests for a Java class — creates new file or adds missing test methods to existing")
+    .action((file) => generateTests(file));
 
 program.addHelpText("after", `
 Examples:
