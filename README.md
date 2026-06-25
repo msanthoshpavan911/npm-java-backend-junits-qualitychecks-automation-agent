@@ -87,22 +87,16 @@ Select which quality checks to enable:
 | `.github/copilot-instructions.md` | Full JUnit test generation workflow + Spring Boot guidelines for Copilot |
 | `.github/instructions/` | Scoped guidelines for controllers, services, and tests |
 | `.vscode/mcp.json` | Connects MCP server to VS Code Copilot Chat |
-| `docs/repository-index.md` | Repository index — populated by `scan` |
-| `docs/architecture.md` | Architecture doc stub |
+| `docs/repository-index.md` | Repository index — generated from your project by `init` |
+| `docs/architecture.md` | Architecture doc — generated from your project by `init` |
+
+> `init` automatically scans your `src/` folder and generates both docs with real content — controllers, services, repositories, entities, and the layer diagram.
 
 ### Step 2 — Install git hooks
 
 ```bash
 springbootquality-check911 hooks
 ```
-
-### Step 3 — (Optional) Scan your codebase
-
-```bash
-springbootquality-check911 scan
-```
-
-Indexes all controllers, services, and repositories so Copilot can navigate your project accurately.
 
 ---
 
@@ -239,7 +233,7 @@ Runs JUnit tests for staged/changed Java files and verifies JaCoCo line coverage
 **If it fails:** Ask Copilot (Agent mode) — `Generate JUnit5 tests for ClassName with 95% coverage`
 
 ### `scan`
-Analyzes the codebase and generates `docs/repository-index.md` and `docs/architecture.md` for Copilot context.
+Re-scans the codebase and regenerates `docs/repository-index.md` and `docs/architecture.md`. Run this after adding new controllers, services, or repositories to keep the docs up to date. (`init` already runs this automatically on first setup.)
 
 ### `hooks`
 Installs the pre-commit git hook. Runs: `quality` → `coverage`.
