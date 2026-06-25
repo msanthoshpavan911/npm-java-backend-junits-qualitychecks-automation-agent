@@ -4,8 +4,8 @@ A developer CLI that enforces code quality and test coverage on your Spring Boot
 
 - Runs **Checkstyle**, **PMD**, and **SpotBugs** on your staged Java files before every commit
 - Enforces **95% JaCoCo line coverage** on changed files before every commit
-- Lets you **scan manually** before committing to preview issues early
-- Configures **GitHub Copilot** with Spring Boot-specific instructions via MCP
+- Configures **GitHub Copilot** with a full JUnit test generation workflow — just ask in Agent mode
+- Configures an **MCP server** so Copilot can navigate and fix your project directly
 - Works as a **git pre-commit hook** — no CI changes required
 
 ---
@@ -18,8 +18,9 @@ A developer CLI that enforces code quality and test coverage on your Spring Boot
 | Java | >= 11 |
 | Maven | >= 3.6 |
 | Git | any |
+| VS Code + GitHub Copilot | for AI-assisted test generation |
 
-Your Spring Boot project must use Maven (`pom.xml`). The following Maven plugins must be configured in your `pom.xml` for quality checks to work:
+Your Spring Boot project must use Maven (`pom.xml`). The following Maven plugins must be configured for quality checks to work:
 
 - `maven-checkstyle-plugin` — for Checkstyle
 - `maven-pmd-plugin` — for PMD
@@ -32,8 +33,6 @@ Your Spring Boot project must use Maven (`pom.xml`). The following Maven plugins
 
 ## Installation
 
-Install the package globally:
-
 ```bash
 npm install -g springbootquality-check911
 ```
@@ -42,16 +41,13 @@ npm install -g springbootquality-check911
 
 ## End-to-End Setup (First Time)
 
-Run these three commands once inside your Spring Boot project root:
-
 ### Step 1 — Initialize
 
 ```bash
 springbootquality-check911 init
 ```
 
-This will:
-- Ask which quality checks you want to enable:
+Select which quality checks to enable:
 
 ```
 Available quality checks:
@@ -63,19 +59,16 @@ Available quality checks:
 Select checks to enable (e.g. 1,2,3):
 ```
 
-- Type the numbers of the checks you want, separated by commas (e.g. `1,4` for Checkstyle + Coverage)
-- Press **Enter with no input** → no checks configured (nothing runs)
-
 After selection it creates:
 
 | File | Purpose |
 |---|---|
 | `.quality-agent.json` | Stores your selected checks |
-| `.github/copilot-instructions.md` | Copilot instructions scoped to your choices |
+| `.github/copilot-instructions.md` | Full JUnit test generation workflow + Spring Boot guidelines for Copilot |
 | `.github/instructions/controller.instructions.md` | Controller layer guidelines |
 | `.github/instructions/service.instructions.md` | Service layer guidelines |
 | `.github/instructions/test.instructions.md` | Test writing standards |
-| `.vscode/mcp.json` | MCP server config for Copilot |
+| `.vscode/mcp.json` | MCP server config (quality tools available to Copilot) |
 | `docs/repository-index.md` | Repository index (populated by `scan`) |
 | `docs/architecture.md` | Architecture doc stub |
 
@@ -85,15 +78,86 @@ After selection it creates:
 springbootquality-check911 scan
 ```
 
-Scans all Java files and builds a structured index of your controllers, services, repositories, and their methods. This powers the MCP server so GitHub Copilot can navigate your codebase accurately.
-
 ### Step 3 — Install git hooks
 
 ```bash
 springbootquality-check911 hooks
 ```
 
-Installs a pre-commit hook that automatically runs quality checks and coverage verification before every `git commit`. Creates `.githooks/pre-commit` and configures git to use it.
+---
+
+## Generating JUnit Tests with 95% Coverage
+
+After running `init`, `.github/copilot-instructions.md` contains a full step-by-step test generation workflow. VS Code Copilot reads this file automatically in Agent mode.
+
+### How to use
+
+**Step 1** — Open Copilot Chat in VS Code (`Ctrl+Alt+I`)
+
+**Step 2** — Click the mode dropdown at the bottom-left of the chat input and select **Agent**
+
+**Step 3** — Type:
+```
+Generate JUnit5 tests for UserServiceImpl with 95% coverage
+```
+
+No file attachment needed. Copilot finds the file itself.
+
+### What Copilot does automatically
+
+1. **Finds** the Java file using terminal (`dir /s /b "ClassName.java"`)
+2. **Reads** the class — package, type (`@Service` / `@RestController` / `@Repository`), injected fields, public methods
+3. **Generates** a complete JUnit 5 test class with the correct pattern:
+   - Services → `@ExtendWith(MockitoExtension.class)` + `@Mock` + `@InjectMocks` + `lenient()` stubs in `@BeforeEach`
+   - Controllers → `@WebMvcTest` + `MockMvc`
+   - Repositories → `@DataJpaTest`
+4. **Writes** the test file to `src/test/java/.../<ClassName>Test.java`
+5. **Runs** `mvn test jacoco:report -Dtest=<ClassName>Test`
+6. **Reads** `target/site/jacoco/jacoco.xml` and computes line coverage
+7. **Iterates** up to 5 times — adds tests for uncovered branches, rewrites the file, re-runs Maven
+8. **Stops** when coverage ≥ 95% and reports the result
+
+### What the generated tests look like
+
+```java
+@ExtendWith(MockitoExtension.class)
+class UserServiceImplTest {
+
+    @Mock private UserRepository userRepository;
+
+    @InjectMocks private UserServiceImpl userService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(userRepository.findById(any()))
+                 .thenReturn(Optional.of(mock(User.class)));
+        lenient().when(userRepository.save(any()))
+                 .thenReturn(mock(User.class));
+        lenient().when(userRepository.findAll())
+                 .thenReturn(Collections.singletonList(mock(User.class)));
+    }
+
+    @Test
+    void getUser_happyPath() {
+        var result = userService.getUser(1L);
+        assertNotNull(result);
+    }
+
+    @Test
+    void getUser_whenNotFound_throwsException() {
+        when(userRepository.findById(any())).thenReturn(Optional.empty());
+        assertThrows(Exception.class, () -> userService.getUser(999L));
+    }
+}
+```
+
+### Final report
+
+```
+✅ UserServiceImpl — 97.3% line coverage (3 iterations)
+Test file: src/test/java/com/example/service/UserServiceImplTest.java
+Test methods created: 8
+```
 
 ---
 
@@ -143,98 +207,38 @@ Running Checkstyle... ❌
 Fix the violations and try committing again.
 ```
 
-> Only violations **in your changed lines** are reported — not the entire file. This means existing violations in untouched code do not block your commit.
+> Only violations **in your changed lines** are reported — not the entire file.
 
 ---
 
 ## Using GitHub Copilot to Fix Violations
 
-After running `springbootquality-check911 init`, your VS Code is configured with an MCP server that gives GitHub Copilot direct access to your project's quality tools. You can ask Copilot to fix violations, review your project, or check coverage — all from the Copilot Chat panel.
+After `init`, VS Code is configured with an MCP server that gives Copilot direct access to your project's quality tools.
 
-### How to Open Copilot Chat
+Press `Ctrl+Alt+I` to open Copilot Chat, switch to **Agent** mode, and use these prompts:
 
-In VS Code: press `Ctrl+Alt+I` (Windows/Linux) or open the Copilot Chat panel from the sidebar.
-
----
-
-### Fix Staged File Violations
-
-**When to use**: Your `git commit` was blocked because of Checkstyle, PMD, or SpotBugs violations.
-
-**Step 1** — Stage the files you want to commit:
-```bash
-git add src/main/java/com/example/OrderService.java
-```
-
-**Step 2** — Type this in Copilot Chat:
-```
-Fix the quality violations in my staged files
-```
-
-**What happens behind the scenes**:
-
-1. Copilot recognises the intent and calls the `fix` MCP tool automatically
-2. The tool runs Checkstyle, PMD, and SpotBugs silently on your staged files
-3. It filters the results to **only the lines you changed** — pre-existing violations in untouched code are ignored
-4. It collects the violated code chunks and sends them to Copilot along with the violation messages
-
-**What Copilot shows you**:
-
-Copilot reads the violations and generates corrected code. For example:
-
-```
-[Checkstyle] OrderService.java:42 — Line contains a tab character
-[PMD:UnusedLocalVariable] OrderService.java:55 — Variable 'unusedResult' is unused
-
-Here is the corrected code for lines 42–55:
-
-    public void processOrder(Order order) {
-        orderRepository.save(order);   // tab replaced with spaces, unused variable removed
-    }
-```
-
-**Step 3** — Apply the fix:
-
-- Click **"Apply in Editor"** on the code block Copilot suggests, or
-- If you are using **Copilot Edits** (`Ctrl+Shift+I`), Copilot writes directly to the file and you review the diff before accepting
-
-**Step 4** — Commit again:
-```bash
-git commit -m "your message"
-```
-
----
-
-### All Copilot Chat Phrases You Can Use
-
-| What you type in Copilot Chat | What it does |
+| What you type | What it does |
 |---|---|
-| `Fix the quality violations in my staged files` | Runs Checkstyle, PMD, SpotBugs on staged files — returns violations in changed lines only + suggested fixes |
-| `Review my project` | Runs a full review: impact analysis + quality checks + coverage check, all in one pass |
-| `Check coverage for my changed files` | Runs JaCoCo tests for your staged files and reports per-file line coverage |
-| `What files are impacted by my changes?` | Analyses your git changes and identifies which files are affected |
-| `Scan my repository` | Rebuilds the repository index so Copilot knows about all your controllers, services, and repositories |
-| `Generate tests for <ClassName>` | Generates JUnit5 + Mockito tests for the given class following the project's test standards |
+| `Fix the quality violations in my staged files` | Runs Checkstyle, PMD, SpotBugs on staged files — returns violations in changed lines + suggested fixes |
+| `Generate JUnit5 tests for ClassName with 95% coverage` | Finds the file, generates tests, runs Maven, iterates until 95% |
+| `Review my project` | Full review: impact analysis + quality checks + coverage |
+| `Check coverage for my changed files` | Runs JaCoCo tests for staged files and reports per-file line coverage |
+| `What files are impacted by my changes?` | Analyses git changes and identifies affected files |
+| `Scan my repository` | Rebuilds the repository index |
 
-> Copilot does not require exact wording — these are examples. As long as your intent is clear, Copilot will pick the right tool.
+### What Copilot knows about your project
 
----
+Because `init` wrote `.github/copilot-instructions.md`, Copilot always behaves as a **Senior Spring Boot Architect** that:
 
-### What Copilot Knows About Your Project
-
-Because `init` wrote `.github/copilot-instructions.md`, Copilot in this repository always behaves as a **Senior Spring Boot Architect** that:
-
-- Generates JUnit5 tests using Mockito for all public methods
-- Fixes Checkstyle, PMD, and SpotBugs violations
+- Generates JUnit 5 tests using the correct pattern for each class type
 - Targets 95% minimum JaCoCo line coverage
-- Uses `@WebMvcTest` + `MockMvc` for controller tests and `@ExtendWith(MockitoExtension.class)` for service tests
-- Navigates your codebase using the `index` and `read_file` MCP tools — never guesses file paths
+- Uses `lenient()` stubs in `@BeforeEach` to prevent `UnnecessaryStubbingException`
+- Fixes Checkstyle, PMD, and SpotBugs violations
+- Navigates your codebase using MCP tools — never guesses file paths
 
 ---
 
-## Manual Usage — Scan Before Committing
-
-You can run quality checks and coverage **at any time** before committing to catch issues early.
+## Manual Usage
 
 ### Stage your files first
 
@@ -248,48 +252,27 @@ git add src/main/java/com/example/OrderService.java
 springbootquality-check911 quality
 ```
 
-Runs Checkstyle, PMD, and SpotBugs on your staged Java files and reports any violations in the lines you changed.
-
 ### Check test coverage
 
 ```bash
 springbootquality-check911 coverage
 ```
 
-Runs JUnit tests for your staged/changed files and reports JaCoCo line coverage. Only checks coverage for the files you changed — not the whole application.
-
 ---
 
 ## Quality Checks Explained
 
 ### Checkstyle
-Enforces **Google Java Style Guide**:
-- Indentation (2 spaces)
-- Line length (max 100 chars)
-- Whitespace around operators and keywords
-- Import ordering and unused imports
-- Javadoc presence on public methods
+Enforces **Google Java Style Guide**: indentation, line length (100 chars), whitespace around operators, import ordering, unused imports.
 
 ### PMD
-Detects **code smells**:
-- Unused imports and variables
-- Methods longer than 30 lines
-- Empty catch blocks
-- Non-meaningful variable names
-- God classes
+Detects **code smells**: unused imports and variables, methods longer than 30 lines, empty catch blocks, non-meaningful variable names.
 
 ### SpotBugs
-Finds **bug patterns** in compiled bytecode:
-- Null dereferences
-- Unclosed streams and connections
-- Missing `equals`/`hashCode` implementations
-- Thread safety violations
+Finds **bug patterns** in compiled bytecode: null dereferences, unclosed streams, missing `equals`/`hashCode`, thread safety violations.
 
 ### Coverage (JaCoCo)
-Enforces **95% minimum line coverage** on changed production files:
-- Runs only the tests related to your changed files (not the full test suite)
-- Reports per-file coverage percentages
-- Blocks the commit if any changed file is below 95%
+Enforces **95% minimum line coverage** on changed production files. Runs only tests related to your changed files, not the full suite.
 
 ---
 
@@ -297,42 +280,23 @@ Enforces **95% minimum line coverage** on changed production files:
 
 ### First-time setup
 
-Run `init` once inside your Spring Boot project root. It asks which checks you want:
-
-```
-springbootquality-check911 init
-
-Available quality checks:
-  1. Checkstyle    — Code style (tab characters, line length, naming)
-  2. PMD           — Code smells (unused variables, long methods, empty catch)
-  3. SpotBugs      — Bug patterns (null dereferences, unclosed streams)
-  4. Coverage      — JaCoCo line coverage — minimum 95% on changed files
-
-Select checks to enable (e.g. 1,2,3):
-```
-
-Type the numbers separated by commas and press **Enter**. For example:
-- `1,2,3` — Checkstyle + PMD + SpotBugs (no coverage)
-- `1,4` — Checkstyle + Coverage only
-- `1,2,3,4` — all four checks
-- _(press Enter with no input)_ — no checks, nothing runs
-
-This creates `.quality-agent.json` in your project root.
-
----
-
-### Changing your configuration later
-
-**Option 1 — Re-run init** (interactive, recommended):
-
 ```bash
 springbootquality-check911 init
 ```
 
-This prompts you again with the same selection screen and rewrites `.quality-agent.json`.
+Select checks by number:
+- `1,2,3` — Checkstyle + PMD + SpotBugs (no coverage gate)
+- `1,4` — Checkstyle + Coverage only
+- `1,2,3,4` — all four checks
 
-**Option 2 — Edit `.quality-agent.json` directly**:
+### Changing configuration later
 
+**Option 1 — Re-run init:**
+```bash
+springbootquality-check911 init
+```
+
+**Option 2 — Edit `.quality-agent.json` directly:**
 ```json
 {
   "checks": {
@@ -344,57 +308,21 @@ This prompts you again with the same selection screen and rewrites `.quality-age
 }
 ```
 
-Set any check to `false` to disable it. Changes take effect on the next `git commit` — no restart needed.
-
----
-
-### When to enable or disable each check
-
-| Check | Enable when | Disable when |
-|---|---|---|
-| **Checkstyle** | You want to enforce consistent code style across the team | Your project already enforces style via a separate tool (e.g. Formatter) |
-| **PMD** | You want to catch unused variables, long methods, empty catches before they merge | The project has a large amount of existing PMD violations you are not ready to address |
-| **SpotBugs** | You want bytecode-level bug detection on every commit | Maven compile is slow and you prefer SpotBugs only in CI |
-| **Coverage** | You want to enforce 95% test coverage on every changed file | You are in early development and coverage is being built up progressively |
-
----
-
-### Configuration file reference — `.quality-agent.json`
-
-Created by `init`. This is the single source of truth for what runs on every commit.
-
-```json
-{
-  "checks": {
-    "checkstyle": true,
-    "pmd": true,
-    "spotbugs": true,
-    "coverage": true
-  }
-}
-```
-
-- `true` → check runs on every `git commit`
-- `false` → check is skipped silently
-- If this file is **missing**, no checks run — run `springbootquality-check911 init` to create it
-
 ---
 
 ## Command Reference
 
-```
-springbootquality-check911 <command>
-```
-
 | Command | When to Use | What It Does |
 |---|---|---|
-| `init` | Once per project | Prompts for check selection, creates config and Copilot instructions |
-| `scan` | After adding new files | Indexes all Java files for MCP/Copilot navigation |
+| `init` | Once per project | Selects checks, creates config and Copilot instructions |
+| `scan` | After adding new files | Indexes Java files for MCP/Copilot navigation |
 | `quality` | Before committing | Scans staged files for Checkstyle, PMD, SpotBugs violations |
 | `coverage` | Before committing | Checks JaCoCo coverage for staged/changed files only |
 | `hooks` | Once per project | Installs pre-commit hook that auto-runs `quality` + `coverage` |
 
-Run `springbootquality-check911 --help` to see this at any time.
+```bash
+springbootquality-check911 --help
+```
 
 ---
 
@@ -402,11 +330,7 @@ Run `springbootquality-check911 --help` to see this at any time.
 
 ```bash
 npm install -g springbootquality-check911@latest
-```
-
-After upgrading, re-run hooks in your project to get the latest hook script:
-
-```bash
+springbootquality-check911 init
 springbootquality-check911 hooks
 ```
 
@@ -415,25 +339,26 @@ springbootquality-check911 hooks
 ## Troubleshooting
 
 ### "No .quality-agent.json found"
-Run `springbootquality-check911 init` in your Spring Boot project root to create the config file.
+Run `springbootquality-check911 init` in your Spring Boot project root.
 
 ### "⚠️ Checkstyle: report not generated"
-Add `maven-checkstyle-plugin` to your `pom.xml`. The tool cannot run Checkstyle without it.
+Add `maven-checkstyle-plugin` to your `pom.xml`.
 
 ### "No staged Java files — skipping"
-Stage your Java files before running quality or coverage:
 ```bash
 git add src/main/java/...
 ```
 
-### Coverage blocks commit even for small changes
-Coverage only runs on the files you changed. If a changed file has no associated test (e.g. `OrderService.java` → `OrderServiceTest.java`), JaCoCo has no data for it. Add tests for the changed class.
+### Coverage blocks commit — no test file exists
+Use Copilot Agent mode to generate tests first:
+```
+Generate JUnit5 tests for OrderService with 95% coverage
+```
 
 ### Pre-commit hook not running
-Make sure you ran `springbootquality-check911 hooks`. Verify git is configured to use the hooks:
 ```bash
-git config core.hooksPath
-# should output: .githooks
+springbootquality-check911 hooks
+git config core.hooksPath   # should output: .githooks
 ```
 
 ---

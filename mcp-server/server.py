@@ -78,5 +78,44 @@ def read_file(path: str) -> str:
     with open(path, encoding="utf-8") as f:
         return f.read()
 
+@mcp.tool()
+def write_file(path: str, content: str) -> str:
+    """
+    Write (create or overwrite) a file with the given content.
+    Used by the JUnit Coverage Expert agent to write test files during iteration.
+    Creates parent directories automatically.
+    """
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Written: {path}"
+    except Exception as e:
+        return f"Error writing {path}: {str(e)}"
+
+@mcp.tool()
+def run_tests_for(class_name: str) -> str:
+    """
+    Run JUnit tests for a specific class, generate JaCoCo report, and return line coverage %.
+    Pass the source class name (e.g. 'UserServiceImpl') or the test class name ('UserServiceImplTest').
+    Used by the JUnit Coverage Expert agent after each write to decide whether to iterate.
+    """
+    from tools.junit_runner import run_tests_for_class
+    r = run_tests_for_class(class_name)
+
+    lines = [
+        f"Test class : {r['test_class']}",
+        f"Status     : {'PASSED' if r['passed'] else 'FAILED'}",
+        f"Coverage   : {r['coverage_pct']}%" if r['coverage_pct'] is not None
+                     else "Coverage   : N/A (run 'mvn test jacoco:report' first)",
+    ]
+    if r.get("failures"):
+        lines.append("\nTest failures:")
+        lines.extend(f"  {f}" for f in r["failures"])
+    if not r["passed"] and r.get("build_tail"):
+        lines.append(f"\nBuild output (tail):\n{r['build_tail'][-600:]}")
+
+    return "\n".join(lines)
+
 if __name__ == "__main__":
     mcp.run()

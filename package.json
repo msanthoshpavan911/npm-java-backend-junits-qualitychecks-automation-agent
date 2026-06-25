@@ -1,6 +1,6 @@
 {
   "name": "springbootquality-check911",
-  "version": "1.0.24",
+  "version": "1.0.34",
   "description": "GitHub Copilot agent for Spring Boot — auto-generates tests, fixes code smells, and validates JaCoCo coverage on every commit and push",
   "bin": {
     "springbootquality-check911": "./bin/springboot-quality-agent.js"
@@ -32,6 +32,7 @@
     "scripts/",
     "config/",
     "mcp-server/server.py",
+    "mcp-server/junit_coverage_agent.py",
     "mcp-server/tools/*.py",
     "mcp-server/requirements.txt"
   ],

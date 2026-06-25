@@ -2,12 +2,11 @@
 
 const { Command } = require("commander");
 
-const init          = require("../commands/init");
-const scan          = require("../commands/scan");
-const quality       = require("../commands/quality");
-const coverage      = require("../commands/coverage");
-const hooks         = require("../commands/hooks");
-const generateTests = require("../commands/generate-tests");
+const init     = require("../commands/init");
+const scan     = require("../commands/scan");
+const quality  = require("../commands/quality");
+const coverage = require("../commands/coverage");
+const hooks    = require("../commands/hooks");
 
 const program = new Command();
 
@@ -17,15 +16,19 @@ program
 `Spring Boot Quality Agent — scan, fix, and enforce code quality on your Java project.
 
 MANUAL USAGE (run anytime before committing):
-  $ springbootquality-check911 quality          — scan staged files for Checkstyle / PMD / SpotBugs violations
-  $ springbootquality-check911 coverage         — check JaCoCo coverage for staged/changed files only
-  $ springbootquality-check911 generate-tests   — generate JUnit 5 tests for a Java class
+  $ springbootquality-check911 quality    — scan staged files for Checkstyle / PMD / SpotBugs violations
+  $ springbootquality-check911 coverage   — check JaCoCo coverage for staged/changed files only
 
 SETUP COMMANDS:
-  $ springbootquality-check911 init       — configure which quality checks to enable for this project
+  $ springbootquality-check911 init       — configure quality checks + install the JUnit Coverage Expert Copilot agent
   $ springbootquality-check911 scan       — index all Java files (used by MCP / Copilot)
-  $ springbootquality-check911 hooks      — install git pre-commit hook (auto-runs quality + coverage on commit)`)
-    .version("1.0.18");
+  $ springbootquality-check911 hooks      — install git pre-commit hook (auto-runs quality + coverage on commit)
+
+TEST GENERATION (via Copilot agent — no manual coding needed):
+  1. Run init to configure the 'JUnit Coverage Expert' agent in .github/prompts/
+  2. Open Copilot chat → select Agent mode → choose 'JUnit Coverage Expert'
+  3. Drag-and-drop your .java file and ask for 95% coverage`)
+    .version("1.0.24");
 
 program
     .command("init")
@@ -51,11 +54,6 @@ program
     .command("hooks")
     .description("Install git pre-commit hook that auto-runs quality + coverage checks on every commit")
     .action(hooks);
-
-program
-    .command("generate-tests [file]")
-    .description("Generate JUnit 5 tests for a Java class — creates new file or adds missing test methods to existing")
-    .action((file) => generateTests(file));
 
 program.addHelpText("after", `
 Examples:
