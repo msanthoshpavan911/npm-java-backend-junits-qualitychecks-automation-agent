@@ -1,6 +1,7 @@
 const fs       = require("fs");
 const path     = require("path");
 const readline = require("readline");
+const scan     = require("./scan");
 
 const pkgRoot = path.join(__dirname, "..");
 const isWin   = process.platform === "win32";
@@ -237,9 +238,6 @@ module.exports = async function init() {
     fs.mkdirSync(".github/instructions", { recursive: true });
     fs.mkdirSync(".vscode", { recursive: true });
 
-    fs.writeFileSync(path.join("docs", "repository-index.md"), "# Repository Index\n");
-    fs.writeFileSync(path.join("docs", "architecture.md"), "# Architecture\n");
-
     fs.writeFileSync(
         path.join(".github", "copilot-instructions.md"),
         buildCopilotInstructions(checks)
@@ -267,11 +265,16 @@ module.exports = async function init() {
 
     fs.writeFileSync(path.join(".vscode", "mcp.json"), buildMcpConfig());
 
+    console.log("\nScanning project and generating architecture docs...");
+    scan();
+
     console.log("\nProject initialized successfully");
     console.log("  Quality config       : .quality-agent.json");
     console.log("  Copilot instructions : .github/copilot-instructions.md");
     console.log("  Scoped instructions  : .github/instructions/");
     console.log("  MCP server config    : .vscode/mcp.json");
+    console.log("  Architecture doc     : docs/architecture.md  (generated from your project)");
+    console.log("  Repository index     : docs/repository-index.md");
     console.log("");
     console.log("How to generate JUnit tests with 95% coverage:");
     console.log("  1. Open Copilot Chat  (Ctrl+Alt+I)");
@@ -279,7 +282,6 @@ module.exports = async function init() {
     console.log("  3. Type: Generate JUnit5 tests for <YourClassName> with 95% coverage");
     console.log("     Copilot finds the file, writes tests, runs Maven, and iterates automatically.");
     console.log("");
-    console.log("Next steps:");
-    console.log("  1. springbootquality-check911 scan   — index your Java files");
-    console.log("  2. springbootquality-check911 hooks  — set up git hooks");
+    console.log("Next step:");
+    console.log("  springbootquality-check911 hooks  — set up git hooks");
 };
