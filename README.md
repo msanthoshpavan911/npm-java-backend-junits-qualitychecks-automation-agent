@@ -8,6 +8,10 @@ A developer CLI that enforces code quality and test coverage on your Spring Boot
 - Configures an **MCP server** so Copilot can navigate and fix your project directly
 - Works as a **git pre-commit hook** — no CI changes required
 
+## Description
+
+A GitHub Copilot agent for Spring Boot projects that enforces code quality on every git commit — runs Checkstyle, PMD, SpotBugs, and JaCoCo coverage (95% threshold) automatically via git hooks. Includes two MCP servers: SpringBoot Architect (8 tools) for code navigation and fixes, and JUnit Coverage Expert for auto-generating JUnit 5 tests with iterative coverage validation up to 95%.
+
 ---
 
 ## What it does
